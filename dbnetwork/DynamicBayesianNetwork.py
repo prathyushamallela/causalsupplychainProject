@@ -185,7 +185,7 @@ if __name__ == "__main__":
     else:
         print(f"The file '{graphpath}' does not exists.")
     print(timeslices, PFAflag, Priors, TransitionModel, Query)
-    #buildGraph(g1, graphpath)
+    buildGraph(g1, graphpath)
 
     #PFA if PFAflag==True
     #applyPFATest()
