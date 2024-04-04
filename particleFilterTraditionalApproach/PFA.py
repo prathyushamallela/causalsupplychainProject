@@ -9,14 +9,18 @@ class PFA(object):
     Prior={0:[(0,0.5)],1:[(1,0.2)],2:[(2,0.3)]}
     Weights ={}
 
-    def particlefiltering(self,evidence=0, N=5, dbn=0):
+    def particlefiltering(self,evidence=0, N=5):
         #for i in range(0,N+1):
         #    print("particle:",i)
         Samples = self.initialise(self,N)
         TransitionModel=self.TransitionModel
         SensorModel=self.SensorModel
         self.Samples=self.updateSamplesBasedOnTM(self,Samples,TransitionModel) #step 1
-        self.Weights=self.weighSamplesOnSensorModel(self,Samples,SensorModel)
+        print("step1:", self.Samples)
+        self.Weights=self.weighSamplesOnSensorModel(self,Samples,SensorModel) #step 2
+        print("step2:", self.Weights)
+        self.Samples=self.weightedResamplingWithReplacement(self,N,self.Samples,self.Weights) #step 3
+        print("step3:",self.Samples) #for next timeslice
         #next=[0] #set of samples for the next timestep
         #weight=[]
         #Samples={}
@@ -26,7 +30,8 @@ class PFA(object):
             #weight[i] = getValuesFromSensorModel()
         #Samples = weightedSampleWithReplacement(N,Samples,weight)
         #return samples
-        return 0
+        Samples = self.Samples
+        return Samples
 
     #initialise the State for first timestep
     def initialise(self,N):
@@ -146,7 +151,7 @@ class PFA(object):
 
         return Samples
 
-    #updating the Samples based on Transition Model, need to be changed
+    #updating the Samples based on Transition Model, need to be changed check*****
     def updateSamplesBasedOnTM(self,Samples, TransitionModel):
         # Update Samples based on TransitionModel
         for key, samples_list in Samples.items():
@@ -156,7 +161,7 @@ class PFA(object):
                         Samples[key][i] = (samples_list[i][0], transition_value)
         return Samples
 
-    #weigthing the samples
+    #weigthing the samples check*****
     def weighSamplesOnSensorModel(self,Samples, SensorModel):
         # Calculate weights in Samples format
         Weights = {}
@@ -168,10 +173,21 @@ class PFA(object):
                     Weights[key].append((sample[0], weight))
                 else:
                     Weights[key] = [(sample[0], weight)]
-
         print(Weights)
         return Weights
 
+    #Weighted resample with replacement
+    def weightedResamplingWithReplacement(self,N,Samples,Weights):
+        resampled_weights = {}
+        for key, weights_list in Weights.items():
+            total_weight = sum(weight for _, weight in weights_list)
+            resampled_weights[key] = []
+            for particle, weight in weights_list:
+                num_samples = int(weight * len(weights_list) / total_weight)
+                resampled_weights[key].extend([(particle, weight)] * num_samples)
+        Samples=resampled_weights
+        #returns samples for next state
+        return Samples
 
 
 if __name__ == "__main__":
@@ -184,6 +200,7 @@ if __name__ == "__main__":
     print((pfa.Samples))
     samples = [value[1] for sublist in pfa.Samples.values() for value in sublist]
     print(len(samples)) #fix this bug for N=20, getting 30 as the max value is taking 20 N; ##fixed (recheck)
+    pfa.particlefiltering(pfa,0,20)
 
 
 
