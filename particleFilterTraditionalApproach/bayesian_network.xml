@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<BayesianNetwork>
+    <Nodes>
+        <Node name="A_0">
+            <Probabilities>
+                <State value="0" probability="0.3"/>
+                <State value="1" probability="0.7"/>
+            </Probabilities>
+        </Node>
+        <Node name="A_1"/>
+        <Node name="A_2"/>
+        <Node name="B_0"/>
+        <Node name="B_1"/>
+        <Node name="B_2"/>
+        <Node name="C_0"/>
+        <Node name="C_1" evidence="True"/>
+        <Node name="C_2"/>
+    </Nodes>
+
+    <Edges>
+        <Edge parent="A_0" child="A_1"/>
+        <Edge parent="A_1" child="A_2"/>
+        <Edge parent="A_0" child="B_0"/>
+        <Edge parent="B_0" child="C_0"/>
+        <Edge parent="A_1" child="B_1"/>
+        <Edge parent="B_1" child="C_1"/>
+        <Edge parent="A_2" child="B_2"/>
+        <Edge parent="B_2" child="C_2"/>
+        <Edge parent="B_0" child="B_1"/>
+        <Edge parent="B_1" child="B_2"/>
+        <Edge parent="C_0" child="C_1"/>
+        <Edge parent="C_1" child="C_2"/>
+    </Edges>
+
+    <ConditionalProbabilities>
+        <Probability given="A_0" node="B_0">
+            <State given_value="0" value="0" probability="0.5"/>
+            <State given_value="0" value="1" probability="0.5"/>
+            <State given_value="1" value="0" probability="0.4"/>
+            <State given_value="1" value="1" probability="0.6"/>
+        </Probability>
+        <Probability given="B_0" node="C_0">
+            <State given_value="0" value="0" probability="0.5"/>
+            <State given_value="0" value="1" probability="0.5"/>
+            <State given_value="1" value="0" probability="0.5"/>
+            <State given_value="1" value="1" probability="0.5"/>
+        </Probability>
+        <TProbability given="A_0" node="A_1">
+            <State given_value="0" value="0" probability="0.5"/>
+            <State given_value="0" value="1" probability="0.5"/>
+            <State given_value="1" value="0" probability="0.5"/>
+            <State given_value="1" value="1" probability="0.5"/>
+        </TProbability>
+    </ConditionalProbabilities>
+</BayesianNetwork>
