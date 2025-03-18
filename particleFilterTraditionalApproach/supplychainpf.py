@@ -6,7 +6,7 @@ config={
 'CPT_q':{(0,0):0.4,(0,1):0.6,(1,0):0.7,(1,1):0.3},
 'CPT_a':{(0,0):0.2,(0,1):0.8,(1,0):0.1,(1,1):0.9},
 'tm_si':{(0,0):0.2,(0,1):0.8,(1,0):0.5,(1,1):0.5},'tm_rs':{(0,0):0.3,(0,1):0.7,(1,0):0.6,(1,1):0.4},
-    'tm_gan':{(0,0):0.25,(0,1):0.75,(1,0):0.8,(1,1):0.2},
+    'tm_gan':{(0,0):0.25,(0,1):0.75,(1,0):0.8,(1,1):0.2}, 'tm_sr':{(0,0):0.3,(0,1):0.7,(1,0):0.6,(1,1):0.4},'tm_d':{(0,0):0.25,(0,1):0.75,(1,0):0.8,(1,1):0.2},
 'N':1000,
 'T':4
 }
@@ -38,7 +38,9 @@ def transition_model(config):
     tm_si=config.get("tm_si")
     tm_rs=config.get("tm_rs")
     tm_gan = config.get("tm_gan")
-    return tm_si,tm_rs,tm_gan
+    tm_sr = config.get("tm_sr")
+    tm_d = config.get("tm_d")
+    return tm_si,tm_rs,tm_gan, tm_sr,tm_d
 
 ####Particle filter algorithm function
 def initialize(N:int,Prior_si,Prior_rsi,Prior_gan,T=0):
@@ -122,6 +124,75 @@ def q_sequence(sampled_values, sampled_probabilities, sampled_weights, Prior_d, 
 
     return sampled_values_with_d_q, updated_probabilities, sampled_weights
 
+
+
+def q_sequence_next(sampled_values, sampled_probabilities, sampled_weights, tm_d, CPT_q):
+    # Extract MC values from sampled_values (assuming MC is the last element)
+    mc_values = [tup[-1] for tup in sampled_values]
+
+    # Correctly sample D based on conditional probabilities given MC
+    d_values = np.array([
+        np.random.choice([0, 1], p=[tm_d[(mc, 0)], tm_d[(mc, 1)]])
+        for mc in mc_values
+    ])
+
+    # Sample Q values based on CPT_q conditioned on (MC, D)
+    q_values = np.array([
+        np.random.choice([0, 1], p=[1 - CPT_q[(mc, d)], CPT_q[(mc, d)]])
+        for mc, d in zip(mc_values, d_values)
+    ])
+
+    # Append D and Q to sampled_values
+    sampled_values_with_d_q = [
+        (*val, d, q) for val, d, q in zip(sampled_values, d_values, q_values)
+    ]
+
+    # Update probabilities based on conditional sampling
+    updated_probabilities = np.array([
+        tm_d[(mc, d)] * (CPT_q[(mc, d)] if q == 1 else (1 - CPT_q[(mc, d)]))
+        for mc, d, q in zip(mc_values, d_values, q_values)
+    ])
+
+    # Normalize updated probabilities to update sampled_weights
+    sampled_weights *= updated_probabilities
+    sampled_weights /= np.sum(sampled_weights)
+
+    return sampled_values_with_d_q, updated_probabilities, sampled_weights
+
+
+def a_sequence_next(sampled_values, sampled_probabilities, sampled_weights, tm_sr, CPT_a):
+    # Extract MC values from sampled_values (assuming MC is the last element in each tuple)
+    mc_values = [tup[-1] for tup in sampled_values]
+
+    # Sample SR based on Prior_sr conditioned on MC
+    sr_values = np.array([
+        np.random.choice([0, 1], p=[tm_sr[(mc, 0)], tm_sr[(mc, 1)]]) for mc in mc_values
+    ])
+
+    # Sample Q based on CPT_a conditioned on MC and SR
+    q_values = np.array([
+        np.random.choice([0, 1], p=[1 - CPT_a[(mc, sr)], CPT_a[(mc, sr)]])
+        for mc, sr in zip(mc_values, sr_values)
+    ])
+
+    # Append SR and Q values to sampled values
+    sampled_values_with_sr_a = [
+        (*val, sr, q) for val, sr, q in zip(sampled_values, sr_values, q_values)
+    ]
+
+    # Update probabilities based on sampled SR and Q values
+    updated_probabilities = np.array([
+        (tm_sr[(mc, sr)]) * (CPT_a[(mc, sr)] if q == 1 else (1 - CPT_a[(mc, sr)]))
+        for mc, sr, q in zip(mc_values, sr_values, q_values)
+    ])
+
+    # Normalize updated probabilities to obtain new weights
+    sampled_weights = sampled_weights * updated_probabilities
+    sampled_weights /= np.sum(sampled_weights)
+
+    return sampled_values_with_sr_a, updated_probabilities, sampled_weights
+
+
 def a_sequence(sampled_values, sampled_probabilities, sampled_weights, Prior_sr, CPT_a):
     # Sample SR values based on Prior_sr probabilities
     q_values = [tup[-1] for tup in sampled_values]  # Extracting Q values
@@ -142,6 +213,8 @@ def a_sequence(sampled_values, sampled_probabilities, sampled_weights, Prior_sr,
     sampled_weights *= updated_probabilities / np.sum(updated_probabilities)
 
     return sampled_values_with_sr_a, updated_probabilities, sampled_weights
+
+
 
 def resample(sampled_values, sampled_weights, N):
     sampled_weights = sampled_weights / np.sum(sampled_weights)
@@ -351,7 +424,7 @@ CPT_mc, CPT_q,CPT_a=conditionals(config)
 N=number_of_samples(config)
 T=timeslice(config)
 t=0
-tm_si,tm_rs,tm_gan=transition_model(config)
+tm_si,tm_rs,tm_gan,tm_sr,tm_d=transition_model(config)
 sampled_values, sampled_probabilities, sampled_weights=initialize(N,Prior_si,Prior_rsi,Prior_gan,0) #for timeslice 0
 #print(sampled_values,sampled_probabilities,sampled_weights)
 #print(sampled_values)
@@ -375,11 +448,11 @@ for t in range(1, T):
     sampled_values, sampled_probabilities, sampled_weights = mc_sequence_next(sampled_values, sampled_probabilities,
                                                                          sampled_weights)
     #print(sampled_values)
-    sampled_values, sampled_probabilities, sampled_weights = q_sequence(sampled_values, sampled_probabilities,
-                                                                        sampled_weights, Prior_d, CPT_q)
+    sampled_values, sampled_probabilities, sampled_weights = q_sequence_next(sampled_values, sampled_probabilities,
+                                                                        sampled_weights, tm_d, CPT_q)
     #print(sampled_values)
-    sampled_values, sampled_probabilities, sampled_weights = a_sequence(sampled_values, sampled_probabilities,
-                                                                        sampled_weights, Prior_sr, CPT_a)
+    sampled_values, sampled_probabilities, sampled_weights = a_sequence_next(sampled_values, sampled_probabilities,
+                                                                        sampled_weights, tm_sr, CPT_a)
     resampled_particles, resampled_weights = importance_resample(sampled_values, sampled_weights, N)
     updated_particle_log.append(resampled_particles)
     update_particles_dict[t]=resampled_particles
@@ -388,7 +461,6 @@ print(update_particles_dict)
 
 ###########query analysis
 print(compute_conditional_probability(update_particles_dict,"q",3,"d",2,0)) #updated_samples, target_var:str, target_time:int, condition_var:str, condition_time:int, condition_value:int
-
 ###########causal query analysis
 #print(compute_do_probability(update_particles_dict,"a",3,"si",2,0)) # compute_do_probability(updated_samples, target_var, target_time, intervention_var, intervention_time, intervention_value)#updated_samples, target_var='a', target_time=2,intervention_var='si', intervention_time=1, intervention_value=0
 print(compute_do_probability(update_particles_dict,"a",3,"si",2,0,"si",0))
